@@ -1,0 +1,29 @@
+{
+	"name": "app",
+	"version": "1.0.50",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"ingest:dev": "bun run --watch src/ingest.ts",
+		"ingest": "NODE_ENV=production bun run src/ingest.ts",
+		"api:dev": "bun run --watch src/api.ts",
+		"api": "NODE_ENV=production bun run src/api.ts",
+		"node:dev": "bun run --watch src/node.ts",
+		"node": "NODE_ENV=production bun run src/node.ts",
+		"lint": "bunx biome format --write ."
+	},
+	"dependencies": {
+		"@bogeychan/elysia-logger": "^0.1.2",
+		"@noble/curves": "^1.6.0",
+		"@solana/web3.js": "^1.95.3",
+		"aws-s3-sdk": "^1.0.1",
+		"croner": "^8.1.1",
+		"elysia": "latest",
+		"ioredis": "^5.4.1",
+		"viem": "^2.21.9"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.9.0",
+		"bun-types": "latest"
+	},
+	"module": "src/ingest.ts"
+}
