@@ -19,6 +19,8 @@ import {
 	taiko,
 	xai,
 } from "viem/chains";
+import { initialize } from "avail-js-sdk";
+import { Header } from "@polkadot/types/interfaces/runtime";
 import { Redis } from "ioredis";
 
 let totalDataPosted = 0;
@@ -28,15 +30,15 @@ let bandwidth; // in bytes per second
 
 const redis = new Redis();
 
+/// ** SOLANA **
 const solanaClient = new solanaWeb3.Connection(
 	process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
 	"confirmed",
 );
+/// ** EVM CHAINS **
 const arbitrumClient = createPublicClient({
 	chain: arbitrum,
-	transport: http(
-		process.env.ARBITRUM_RPC_URL ?? "https://arb1.arbitrum.io/rpc",
-	),
+	transport: http(process.env.ARBITRUM_RPC_URL),
 });
 const avalancheClient = createPublicClient({
 	chain: avalanche,
@@ -60,9 +62,7 @@ const ethereumClient = createPublicClient({
 });
 const fantomClient = createPublicClient({
 	chain: fantom,
-	transport: http(
-		process.env.FANTOM_RPC_URL ?? "https://rpcapi.fantom.network",
-	),
+	transport: http(process.env.FANTOM_RPC_URL),
 });
 const gnosisClient = createPublicClient({
 	chain: gnosis,
@@ -86,9 +86,7 @@ const metisClient = createPublicClient({
 });
 const optimismClient = createPublicClient({
 	chain: optimism,
-	transport: http(
-		process.env.OPTIMISM_RPC_URL ?? "https://mainnet.optimism.io",
-	),
+	transport: http(process.env.OPTIMISM_RPC_URL),
 });
 const polygonClient = createPublicClient({
 	chain: polygon,
@@ -106,7 +104,36 @@ const xaiClient = createPublicClient({
 	chain: xai,
 	transport: http(process.env.XAI_RPC_URL),
 });
+/// ** DA CHAINS **
+// disable stdwarn
+const tempConsoleWarn = console.warn;
+console.warn = () => {};
+const availClient = await initialize(
+	process.env.AVAIL_RPC_URL ?? "wss://mainnet-rpc.avail.so/ws",
+);
+// re-enable stdwarn
+console.warn = tempConsoleWarn;
 
+/// ** SOLANA **
+async function postSolana() {
+	try {
+		const slot = await solanaClient.getSlot("confirmed");
+		const block = await solanaClient.getBlock(slot, {
+			commitment: "confirmed",
+			maxSupportedTransactionVersion: 0,
+			transactionDetails: "full",
+			rewards: false,
+		});
+		const data = Buffer.from(block!.transactions.toString());
+		await fetch(process.env.API_URL as string, {
+			method: "PUT",
+			body: data,
+		});
+	} catch (error) {
+		console.error(error);
+	}
+}
+/// ** EVM CHAINS **
 async function postArbitrum() {
 	try {
 		const block = await arbitrumClient.getBlock({
@@ -186,7 +213,7 @@ async function postEthereum() {
 				"https://ethereum-beacon-api.publicnode.com/eth/v1/beacon/blob_sidecars/head",
 				{
 					headers: {
-						'Accept': "application/json",
+						Accept: "application/json",
 					},
 				},
 			),
@@ -392,26 +419,23 @@ async function postXai() {
 		console.error("xai", error);
 	}
 }
-
-async function solana() {
+/// ** DA CHAINS **
+async function postAvail() {
 	try {
-		const slot = await solanaClient.getSlot("confirmed");
-		const block = await solanaClient.getBlock(slot, {
-			commitment: "confirmed",
-			maxSupportedTransactionVersion: 0,
-			transactionDetails: "full",
-			rewards: false,
-		});
-		const data = Buffer.from(block!.transactions.toString());
+		const block = await availClient.rpc.chain.getBlock();
+		const humanBlock = block.toPrimitive() as { block: { extrinsics: any[] } };
+		const data = Buffer.from(humanBlock.block.extrinsics.toString());
+		totalDataPosted += data.byteLength;
 		await fetch(process.env.API_URL as string, {
 			method: "PUT",
 			body: data,
 		});
 	} catch (error) {
-		console.error(error);
+		console.error("avail", error);
 	}
 }
 
+/// ** MISC **
 async function updateStats() {
 	uptime = Date.now() - startTime;
 	bandwidth = totalDataPosted / uptime;
@@ -421,6 +445,9 @@ async function updateStats() {
 	await redis.set("UPTIME", Date.now() - startTime);
 }
 
+/// ** SOLANA **
+setInterval(async () => await postSolana(), 400);
+/// ** EVM CHAINS **
 setInterval(async () => await postArbitrum(), 250);
 setInterval(async () => await postAvalanche(), 1000);
 setInterval(async () => await postBase(), 2000);
@@ -437,7 +464,10 @@ setInterval(async () => await postPolygon(), 2000);
 setInterval(async () => await postPolygonZkEvm(), 13000);
 setInterval(async () => await postTaiko(), 20000);
 setInterval(async () => await postXai(), 250);
-setInterval(async () => await solana(), 400);
+/// ** DA CHAINS **
+setInterval(async () => await postAvail(), 20000);
+
+/// ** MISC **
 setInterval(async () => await updateStats(), 1000);
 
 const main = async () => {};
