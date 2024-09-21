@@ -6,7 +6,7 @@ import { bls12_381 as bls } from "@noble/curves/bls12-381";
 import { Elysia, t } from "elysia";
 
 const s3Client = new S3Client({
-  region: "us-east-1",
+  region: process.env.S3_BUCKET ?? "us-east-1",
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
@@ -18,7 +18,8 @@ const postData = async ({
   body,
   log,
   set,
-}: { body: any; log: any; set: any }) => {
+  error,
+}: { body: any; log: any; set: any; error: any }) => {
   try {
     const signature = bls.sign(body, privateKey);
     await s3Client.send(
@@ -32,6 +33,7 @@ const postData = async ({
     return { signature: Buffer.from(signature).toString("hex") };
   } catch (err) {
     log.error(err);
+    error(500);
   }
 };
 

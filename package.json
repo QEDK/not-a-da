@@ -9,7 +9,8 @@
     "api": "NODE_ENV=production bun run src/api.ts",
     "node:dev": "bun run --watch src/node.ts",
     "node": "NODE_ENV=production bun run src/node.ts",
-    "lint": "bunx biome check --fix --unsafe ."
+    "lint": "bunx biome check --fix --unsafe .",
+    "pk": "NODE_ENV=production bun run src/helpers/generatePrivateKeys.ts"
   },
   "dependencies": {
     "@bogeychan/elysia-logger": "^0.1.2",
@@ -18,6 +19,7 @@
     "avail-js-sdk": "^0.2.16",
     "aws-s3-sdk": "^1.0.1",
     "elysia": "latest",
+    "fast-json-stringify": "^6.0.0",
     "gnablib": "^0.4.41",
     "ioredis": "^5.4.1",
     "viem": "^2.21.9"

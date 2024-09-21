@@ -1,4 +1,3 @@
-import { Header } from "@polkadot/types/interfaces/runtime";
 import * as solanaWeb3 from "@solana/web3.js";
 import { initialize } from "avail-js-sdk";
 import { Redis } from "ioredis";
@@ -8,8 +7,16 @@ import {
   avalanche,
   base,
   blast,
+  bsc,
+  celo,
+  cronos,
+  eos,
   fantom,
+  filecoin,
+  flare,
+  flowMainnet,
   gnosis,
+  immutableZkEvm,
   linea,
   mainnet,
   manta,
@@ -18,16 +25,20 @@ import {
   optimism,
   polygon,
   polygonZkEvm,
+  scroll,
+  sei,
   taiko,
   xai,
 } from "viem/chains";
 
-let totalDataPosted = 0;
-const startTime = Date.now();
-let uptime;
-let bandwidth; // in bytes per second
+let totalDataPosted = 0; // in bytes
+let uptime = 0; // in millis
+let bandwidth = 0; // in bytes per second
+const startTime = Date.now(); // in millis
 
-const redis = new Redis();
+const redis = new Redis(
+  (process.env.REDIS_URL as string) ?? "redis://localhost:6379",
+);
 
 /// ** SOLANA **
 const solanaClient = new solanaWeb3.Connection(
@@ -53,6 +64,22 @@ const blastClient = createPublicClient({
   chain: blast,
   transport: http(process.env.BLAST_RPC_URL),
 });
+const bscClient = createPublicClient({
+  chain: bsc,
+  transport: http(process.env.BSC_RPC_URL),
+});
+const celoClient = createPublicClient({
+  chain: celo,
+  transport: http(process.env.CELO_RPC_URL),
+});
+const cronosClient = createPublicClient({
+  chain: cronos,
+  transport: http(process.env.CRONOS_RPC_URL),
+});
+const eosClient = createPublicClient({
+  chain: eos,
+  transport: http(process.env.EOS_RPC_URL),
+});
 const ethereumClient = createPublicClient({
   chain: mainnet,
   transport: http(
@@ -63,9 +90,25 @@ const fantomClient = createPublicClient({
   chain: fantom,
   transport: http(process.env.FANTOM_RPC_URL),
 });
+const filecoinClient = createPublicClient({
+  chain: filecoin,
+  transport: http(process.env.FILECOIN_RPC_URL),
+});
+const flareClient = createPublicClient({
+  chain: flare,
+  transport: http(process.env.FLARE_RPC_URL),
+});
+const flowMainnetClient = createPublicClient({
+  chain: flowMainnet,
+  transport: http(process.env.FLOWMAINNET_RPC_URL),
+});
 const gnosisClient = createPublicClient({
   chain: gnosis,
   transport: http(process.env.GNOSIS_RPC_URL),
+});
+const immutableZkEvmClient = createPublicClient({
+  chain: immutableZkEvm,
+  transport: http(process.env.IMMUTABLEZKEVM_RPC_URL),
 });
 const lineaClient = createPublicClient({
   chain: linea,
@@ -95,6 +138,14 @@ const polygonZkEvmClient = createPublicClient({
   chain: polygonZkEvm,
   transport: http(process.env.POLYGONZKEVM_RPC_URL),
 });
+const scrollClient = createPublicClient({
+  chain: scroll,
+  transport: http(process.env.SCROLL_RPC_URL),
+});
+const seiClient = createPublicClient({
+  chain: sei,
+  transport: http(process.env.SEI_RPC_URL),
+});
 const taikoClient = createPublicClient({
   chain: taiko,
   transport: http(process.env.TAIKO_RPC_URL),
@@ -113,6 +164,15 @@ const availClient = await initialize(
 // re-enable stdwarn
 console.warn = tempConsoleWarn;
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+interface BigInt {
+  /** Convert to BigInt to string form in JSON.stringify */
+  toJSON: () => string;
+}
+BigInt.prototype.toJSON = function () {
+  return this.toString();
+};
+
 /// ** SOLANA **
 async function postSolana() {
   try {
@@ -121,10 +181,10 @@ async function postSolana() {
       commitment: "confirmed",
       maxSupportedTransactionVersion: 0,
       transactionDetails: "full",
-      rewards: false,
+      rewards: true,
     });
     if (!block) return; // some slots are empty
-    const data = Buffer.from(block?.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     await fetch(process.env.API_URL as string, {
       method: "PUT",
       body: data,
@@ -140,7 +200,7 @@ async function postArbitrum() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -157,7 +217,7 @@ async function postAvalanche() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -174,7 +234,7 @@ async function postBase() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -191,7 +251,7 @@ async function postBlast() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -199,6 +259,74 @@ async function postBlast() {
     });
   } catch (error) {
     console.error("blast", error);
+  }
+}
+
+async function postBsc() {
+  try {
+    const block = await bscClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("bsc", error);
+  }
+}
+
+async function postCelo() {
+  try {
+    const block = await celoClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("celo", error);
+  }
+}
+
+async function postCronos() {
+  try {
+    const block = await cronosClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("cronos", error);
+  }
+}
+
+async function postEos() {
+  try {
+    const block = await eosClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("eos", error);
   }
 }
 
@@ -239,7 +367,7 @@ async function postFantom() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -250,13 +378,64 @@ async function postFantom() {
   }
 }
 
+async function postFilecoin() {
+  try {
+    const block = await filecoinClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("filecoin", error);
+  }
+}
+
+async function postFlare() {
+  try {
+    const block = await flareClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("flare", error);
+  }
+}
+
+async function postFlowMainnet() {
+  try {
+    const block = await flowMainnetClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("flowMainnet", error);
+  }
+}
+
 async function postGnosis() {
   try {
     const block = await gnosisClient.getBlock({
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -267,13 +446,30 @@ async function postGnosis() {
   }
 }
 
+async function postImmutableZkEvm() {
+  try {
+    const block = await immutableZkEvmClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("immutableZkEvm", error);
+  }
+}
+
 async function postLinea() {
   try {
     const block = await lineaClient.getBlock({
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -290,7 +486,7 @@ async function postManta() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -307,7 +503,7 @@ async function postMantle() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -324,7 +520,7 @@ async function postMetis() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -341,7 +537,7 @@ async function postOptimism() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -358,7 +554,7 @@ async function postPolygon() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -375,7 +571,7 @@ async function postPolygonZkEvm() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -386,13 +582,47 @@ async function postPolygonZkEvm() {
   }
 }
 
+async function postScroll() {
+  try {
+    const block = await scrollClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("scroll", error);
+  }
+}
+
+async function postSei() {
+  try {
+    const block = await seiClient.getBlock({
+      blockTag: "latest",
+      includeTransactions: true,
+    });
+    const data = Buffer.from(JSON.stringify(block));
+    totalDataPosted += data.byteLength;
+    await fetch(process.env.API_URL as string, {
+      method: "PUT",
+      body: data,
+    });
+  } catch (error) {
+    console.error("sei", error);
+  }
+}
+
 async function postTaiko() {
   try {
     const block = await taikoClient.getBlock({
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -409,7 +639,7 @@ async function postXai() {
       blockTag: "latest",
       includeTransactions: true,
     });
-    const data = Buffer.from(block.transactions.toString());
+    const data = Buffer.from(JSON.stringify(block));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -423,8 +653,7 @@ async function postXai() {
 async function postAvail() {
   try {
     const block = await availClient.rpc.chain.getBlock();
-    const humanBlock = block.toPrimitive() as { block: { extrinsics: any[] } };
-    const data = Buffer.from(humanBlock.block.extrinsics.toString());
+    const data = Buffer.from(JSON.stringify(block.toPrimitive()));
     totalDataPosted += data.byteLength;
     await fetch(process.env.API_URL as string, {
       method: "PUT",
@@ -438,11 +667,13 @@ async function postAvail() {
 /// ** MISC **
 async function updateStats() {
   uptime = Date.now() - startTime;
-  bandwidth = totalDataPosted / uptime;
-  await redis.set("TOTAL_DATA_POSTED", totalDataPosted);
-  await redis.set("BANDWIDTH", bandwidth);
-  await redis.set("START_TIME", startTime);
-  await redis.set("UPTIME", Date.now() - startTime);
+  bandwidth = (totalDataPosted / uptime) * 1000; /// convert from bytes per millisecond to bytes per second
+  await Promise.all([
+    redis.set("TOTAL_DATA_POSTED", totalDataPosted),
+    redis.set("BANDWIDTH", bandwidth),
+    redis.set("START_TIME", startTime),
+    redis.set("UPTIME", uptime),
+  ]);
 }
 
 /// ** SOLANA **
@@ -452,9 +683,17 @@ setInterval(async () => await postArbitrum(), 250);
 setInterval(async () => await postAvalanche(), 1000);
 setInterval(async () => await postBase(), 2000);
 setInterval(async () => await postBlast(), 2000);
+setInterval(async () => await postBsc(), 3000);
+setInterval(async () => await postCelo(), 5000);
+setInterval(async () => await postCronos(), 5000);
+setInterval(async () => await postEos(), 1000);
 setInterval(async () => await postEthereum(), 12000);
 setInterval(async () => await postFantom(), 1000);
+setInterval(async () => await postFilecoin(), 30000);
+setInterval(async () => await postFlare(), 2000);
+setInterval(async () => await postFlowMainnet(), 2000);
 setInterval(async () => await postGnosis(), 12000);
+setInterval(async () => await postImmutableZkEvm(), 2000);
 setInterval(async () => await postLinea(), 2000);
 setInterval(async () => await postManta(), 10000);
 setInterval(async () => await postMantle(), 2000);
@@ -462,6 +701,8 @@ setInterval(async () => await postMetis(), 1000);
 setInterval(async () => await postOptimism(), 2000);
 setInterval(async () => await postPolygon(), 2000);
 setInterval(async () => await postPolygonZkEvm(), 13000);
+setInterval(async () => await postScroll(), 3000);
+setInterval(async () => await postSei(), 400);
 setInterval(async () => await postTaiko(), 20000);
 setInterval(async () => await postXai(), 250);
 /// ** DA CHAINS **

@@ -3,7 +3,9 @@ import { Elysia, t } from "elysia";
 import { ReedSolomon, dataMatrix } from "gnablib/ecc";
 import { Redis } from "ioredis";
 
-const redis = new Redis();
+const redis = new Redis(
+  (process.env.REDIS_URL as string) ?? "redis://localhost:6379",
+);
 let cache = "";
 
 const getStats = async () => {
@@ -15,7 +17,11 @@ const getStats = async () => {
   return { totalDataPosted, uptime, bandwidth };
 };
 
-const putData = async ({ body, log }: { body: any; log: any }) => {
+const putData = async ({
+  body,
+  log,
+  error,
+}: { body: any; log: any; error: any }) => {
   try {
     cache = cache.concat(body);
     const cacheLen = 1024 * 1024; // 1 MB
@@ -53,6 +59,7 @@ const putData = async ({ body, log }: { body: any; log: any }) => {
     cache = "";
   } catch (err) {
     log.error(err);
+    error(500);
   }
 };
 
